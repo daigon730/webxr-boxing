@@ -43,6 +43,7 @@
   #toast{position:fixed;top:118px;left:0;right:0;z-index:6;pointer-events:none;text-align:center;
     font-size:20px;font-weight:800;letter-spacing:.04em;opacity:0;transition:opacity .15s;text-shadow:0 2px 10px rgba(0,0,0,.7);}
   #toast.show{opacity:1;}
+  body:not(.in-round) #hud, body:not(.in-round) #legend{display:none;}
 
   /* ---------- bottom controls ---------- */
   #controls{position:fixed;left:0;right:0;bottom:0;z-index:6;
@@ -119,23 +120,10 @@
 
 <div id="toast"></div>
 
-<div id="controls">
-  <div class="ctl-group">
-    <button class="dodge-btn" id="btn-dodge-l" aria-label="左によける">◀</button>
-    <button class="dodge-btn" id="btn-dodge-d" aria-label="しゃがむ">▼</button>
-    <button class="dodge-btn" id="btn-dodge-r" aria-label="右によける">▶</button>
-  </div>
-  <div class="ctl-group">
-    <button id="btn-music">♪ 音楽 OFF</button>
-    <button id="btn-reset">↺ リセット</button>
-    <button id="btn-vr">VRに入る</button>
-  </div>
-</div>
-
 <div class="overlay" id="ov-start">
   <div class="card">
     <h1>VRボクシング <span class="accent">試作</span></h1>
-    <p class="lead">シャドーボクシングの動きで遊ぶ60秒ラウンド。前から飛んでくる玉を、拳で打つ・体でよける。後半ほど玉は速く・多くなり、コンボが伸びるほど命中音の音程が上がります。</p>
+    <p class="lead">シャドーボクシングの動きで遊ぶVR専用ゲーム。前から飛んでくる玉を、拳で打つ・体でよける。後半ほど玉は速く・多くなり、コンボが伸びるほど命中音の音程が上がります。モードはVRの中で選べます。</p>
     <div class="rules">
       <div class="rule"><span class="dot punch"></span><div><b>赤玉はパンチで壊す</b><span>速く突き出すほど高得点（+10〜30）。コンボがつながると気持ちいい。</span></div></div>
       <div class="rule"><span class="dot dodge"></span><div><b>青玉は顔を狙ってくる。よける</b><span>横にずれる／しゃがんでかわすと +15。顔に当たると −20。</span></div></div>
@@ -143,15 +131,12 @@
       <div class="rule"><span class="dot" style="background:#ffd60a"></span><div><b>エンドレスモード（ライフ3）</b><span>タイマーなし。顔への被弾と爆弾を殴るとライフ −1、0になったら終了。時間とともに少しずつ速く・多くなります。</span></div></div>
     </div>
     <p class="howto">
-      <b>Quest 3：</b>「VRに入る」から入室すると、リングの中に立った状態で始まります。スタートはVRの中で、目の前のボードのモード（60秒／エンドレス）にグローブで触れて開始。A・Xボタン／トリガーでも選択中のモードで開始できます。終了後はボードに触れてそのままリスタート、下部の「モード選択に戻る」でモード変更もできます。ラウンド中の A / X はリスタートです。<br>
-      <b>PC・スマホ（お試し）：</b>マウス／指の動きが右拳、速く振るとパンチ判定。頭は A・D キーか下の ◀▼▶ ボタンでよけます。Rキーでリセット。<br>
-      <b>BGM：</b>「LEATHER AND CANVAS」（Geminiで生成したインストゥルメンタル）。♪ボタン／Mキーで ON/OFF。
+      <b>遊び方：</b>下の「VRに入る」を押してヘッドセットをかぶると、リングの中に立った状態で、目の前にモード選択ボードが出ます。グローブでモード（60秒／エンドレス）に触れるとスタート。A・Xボタン／トリガーでも開始できます。終了後はボードに触れてそのままリスタート、下部の「モード選択に戻る」でモード変更もできます。ラウンド中の A / X はリスタートです。<br>
+      <b>BGM：</b>「LEATHER AND CANVAS」（Geminiで生成したインストゥルメンタル）が自動で流れます。
     </p>
     <p class="safety">安全のため：周りに物がない場所で遊び、コントローラーのストラップを必ず手首に通してください。</p>
     <div class="actions">
-      <button class="primary" id="btn-start">🥊 ラウンド開始（60秒）</button>
-      <button class="primary" id="btn-start-endless" style="background:#0b5568;border-color:#39c2d7">♾ エンドレス開始（ライフ3）</button>
-      <span style="font-size:12px;color:var(--sub)">カードの外側をタップしても始まります</span>
+      <button class="primary" id="btn-vr">VRに入る</button>
     </div>
   </div>
 </div>
@@ -185,7 +170,7 @@ function showErr(msg){ errBox.style.display='block'; errBox.textContent = 'エ�
 window.addEventListener('error', function(e){ showErr(e.message || 'unknown'); });
 
 /* ================= Audio (WebAudio synth) ================= */
-var AC = null, musicOn = false;
+var AC = null;
 function ensureAudio(){
   if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ AC=null; } }
   if(AC && AC.state==='suspended') AC.resume();
@@ -216,14 +201,14 @@ var SFX = {
   /* pitch climbs one semitone per combo step (capped at +1 octave at 12 combo);
      when the combo breaks, game.combo resets to 0 and the pitch drops back to base */
   punch: function(power, combo){ var f = Math.pow(2, Math.min(combo||0, 12) / 12);
-    noise(0.09, 0.35, 700+power*30); tone(150, 0.12, 'sine', 0.4, 55); tone(880*f, 0.07, 'triangle', 0.12, 1320*f); },
-  whiff: function(){ noise(0.14, 0.10, 1800); },
-  dodge: function(){ tone(660,0.1,'triangle',0.16); tone(990,0.14,'triangle',0.16,null,0.07); },
-  headHit: function(){ tone(110,0.3,'sawtooth',0.3,60); noise(0.2,0.3,300); },
-  bomb: function(){ noise(0.5,0.55,160); tone(70,0.5,'sine',0.5,32); },
-  pass: function(){ tone(520,0.08,'sine',0.08,760); },
-  count: function(){ tone(440,0.09,'square',0.1); },
-  bell: function(){ tone(1180,0.5,'triangle',0.22,1160); tone(1770,0.4,'sine',0.1,null,0.02); }
+    noise(0.09, 0.55, 700+power*30); tone(150, 0.12, 'sine', 0.55, 55); tone(880*f, 0.07, 'triangle', 0.2, 1320*f); },
+  whiff: function(){ noise(0.14, 0.14, 1800); },
+  dodge: function(){ tone(660,0.1,'triangle',0.24); tone(990,0.14,'triangle',0.24,null,0.07); },
+  headHit: function(){ tone(110,0.3,'sawtooth',0.45,60); noise(0.2,0.45,300); },
+  bomb: function(){ noise(0.5,0.7,160); tone(70,0.5,'sine',0.65,32); },
+  pass: function(){ tone(520,0.08,'sine',0.14,760); },
+  count: function(){ tone(440,0.09,'square',0.16); },
+  bell: function(){ tone(1180,0.5,'triangle',0.32,1160); tone(1770,0.4,'sine',0.16,null,0.02); }
 };
 /* BGM: 「LEATHER AND CANVAS」 Gemini (Lyria) 生成のインストゥルメンタル（65秒）を単一HTML内に埋め込み、ループ再生 */
 var BGM_SRC = 'data:audio/mpeg;base64,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jBJobz5PPHb8W2LZ/i1XfcykY3BhZFkGeAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' +
@@ -752,17 +737,10 @@ var BGM_SRC = 'data:audio/mpeg;base64,SUQzAwAAAAA8HEdFT0IAAB4SAAAAYXBwbGljYXRpb2
 var bgm = new Audio(BGM_SRC);
 bgm.loop = true;
 bgm.preload = 'auto';
-bgm.volume = 0.85;
-function setMusic(on){
-  musicOn = on;
-  document.getElementById('btn-music').textContent = on ? '♪ 音楽 ON' : '♪ 音楽 OFF';
-  if(on){
-    ensureAudio();
-    var p = bgm.play();
-    if(p && p.catch) p.catch(function(){});
-  } else {
-    bgm.pause();
-  }
+bgm.volume = 0.28; /* BGM sits well under the punch sounds — the hits are the main event */
+function startBgm(){
+  ensureAudio();
+  if(bgm.paused){ var p = bgm.play(); if(p && p.catch) p.catch(function(){}); }
 }
 
 /* ================= Three setup ================= */
@@ -792,6 +770,7 @@ function fitFov(){
 var camera = new THREE.PerspectiveCamera(fitFov(), window.innerWidth/window.innerHeight, 0.05, 60);
 var rig = new THREE.Group();
 var PLAYER_Z = -1.9; /* player stands inside the ring (ring centre is z=-2.4, south ropes at z=0.15) */
+var rigBase = { x:0, z:PLAYER_Z }; /* recentered start spot; camera shake offsets from here */
 rig.position.set(0, 0, PLAYER_Z);
 camera.position.set(0, 1.6, 0);
 rig.add(camera);
@@ -878,13 +857,13 @@ gateGlow.position.set(0, 1.25, 0.06); gate.add(gateGlow);
 gate.position.set(0, 0, -4.9); scene.add(gate); /* just inside the far ropes (z=-4.95), in front of the player */
 
 /* ---------- gloves ---------- */
-function makeGlove(color){
+function makeGlove(color, mirror){
   var g = new THREE.Group();
   var leather = new THREE.MeshStandardMaterial({color:color, roughness:0.42, metalness:0.05});
   var fist = new THREE.Mesh(new THREE.SphereGeometry(0.085, 20, 16), leather);
   fist.scale.set(1, 1.15, 1.25); fist.castShadow = true; g.add(fist);
   var thumb = new THREE.Mesh(new THREE.SphereGeometry(0.038, 12, 10), leather);
-  thumb.position.set(0.055, -0.01, 0.05); g.add(thumb);
+  thumb.position.set(mirror ? -0.055 : 0.055, -0.01, 0.05); g.add(thumb);
   var cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.07, 0.09, 14),
     new THREE.MeshStandardMaterial({color:0xf2f3f5, roughness:0.6}));
   cuff.position.set(0, -0.02, -0.13); cuff.rotation.x = Math.PI/2; g.add(cuff);
@@ -893,16 +872,18 @@ function makeGlove(color){
   pad.position.set(0, 0.02, 0.075); pad.scale.set(1.15, 1.05, 0.55); g.add(pad);
   return g;
 }
-var gloveR = makeGlove(0xd92c20); scene.add(gloveR);
-var gloveL = makeGlove(0x1f6fb2); scene.add(gloveL);
+var gloveR = makeGlove(0xd92c20, false); scene.add(gloveR);
+var gloveL = makeGlove(0x1f6fb2, true); scene.add(gloveL); /* left glove mirrored, so its thumb sits on the inner side like a real left glove */
 var gloveState = {
   R:{ pos:new THREE.Vector3(0.24,1.38,-1.4), prev:new THREE.Vector3(), vel:new THREE.Vector3(), speed:0, swingCd:0 },
   L:{ pos:new THREE.Vector3(-0.24,1.32,-1.45), prev:new THREE.Vector3(), vel:new THREE.Vector3(), speed:0, swingCd:0 }
 };
 /* The glove model is built with its striking face toward +Z and the cuff toward -Z,
-   but WebXR grip space points forward along -Z. Without this 180° Y flip the glove
-   appears reversed (cuff forward, face toward the player). */
-var GLOVE_FLIP = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), Math.PI);
+   but WebXR grip space points forward along -Z, so a 180° Y flip puts the face
+   forward. The grip axis also sits a little below a fist's natural punching line
+   (a bare flip left the gloves feeling drooped), so the face is pitched up ~17°
+   about the grip X axis to sit square in front of the fist. */
+var GLOVE_FLIP = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.30, Math.PI, 0, 'XYZ'));
 
 /* XR controllers */
 var grips = [], controllers = [];
@@ -926,9 +907,7 @@ var keys = {};
 window.addEventListener('keydown', function(e){
   keys[e.code] = true;
   if(e.code==='KeyR'){ restart(); }
-  if(e.code==='KeyM'){ setMusic(!musicOn); }
   if(['ArrowLeft','ArrowRight','ArrowDown','Space'].indexOf(e.code)>=0) e.preventDefault();
-  if(e.code==='Space' && state==='idle') startGame();
 });
 window.addEventListener('keyup', function(e){ keys[e.code]=false; });
 
@@ -945,18 +924,7 @@ renderer.domElement.addEventListener('pointermove', function(e){
 renderer.domElement.addEventListener('pointerdown', function(e){
   ensureAudio();
   var w = pointerToWorld(e.clientX, e.clientY); pointer.x = w.x; pointer.y = w.y; pointer.active = true;
-  if(state==='idle') startGame();
 });
-
-/* dodge buttons (touch) */
-function bindHold(id, code){
-  var el = document.getElementById(id);
-  var on = function(e){ e.preventDefault(); ensureAudio(); keys[code]=true; };
-  var off = function(e){ e.preventDefault(); keys[code]=false; };
-  el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off);
-  el.addEventListener('pointerleave', off); el.addEventListener('pointercancel', off);
-}
-bindHold('btn-dodge-l','ArrowLeft'); bindHold('btn-dodge-r','ArrowRight'); bindHold('btn-dodge-d','ArrowDown');
 
 /* ---------- 3D HUD panel ---------- */
 var hudCanvas = document.createElement('canvas'); hudCanvas.width = 512; hudCanvas.height = 128;
@@ -1100,17 +1068,30 @@ var ballMats = {
   bomb:  new THREE.MeshStandardMaterial({map:bombTex, roughness:0.5})
 };
 var balls = [];
-function spawnBall(forceType){
+function spawnBall(forceType, zOff){
   var r = Math.random();
   var type = forceType || (r < 0.52 ? 'punch' : (r < 0.84 ? 'dodge' : 'bomb'));
   var radius = type==='dodge' ? 0.17 : (type==='bomb' ? 0.15 : 0.14);
+  var headW = new THREE.Vector3(); camera.getWorldPosition(headW);
+  var spawnZ = -4.85 - (zOff || 0); /* extra balls in a wave start further back, staggered in depth */
+  /* Pick a spawn point that does not overlap any ball already in flight:
+     stacked balls can't be punched apart, so retry a few positions and skip
+     this spawn rather than pile balls on top of each other. */
+  var x = 0, y = 0, ok = false;
+  for(var tries = 0; tries < 10 && !ok; tries++){
+    if(type==='dodge'){ x = headW.x + (Math.random()-0.5)*0.14; y = headW.y + (Math.random()-0.5)*0.1; }
+    else { x = headW.x + (Math.random()*2-1) * 0.78; y = 1.02 + Math.random()*0.82; }
+    ok = true;
+    for(var bi = 0; bi < balls.length; bi++){
+      var bp = balls[bi].mesh.position;
+      var dx = bp.x - x, dy = bp.y - y, dz = bp.z - spawnZ;
+      if(dx*dx + dy*dy + dz*dz < 0.24){ ok = false; break; } /* closer than ~0.49 m counts as stacked */
+    }
+  }
+  if(!ok) return false;
   var mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 22, 18), ballMats[type]);
   mesh.castShadow = true;
-  var headW = new THREE.Vector3(); camera.getWorldPosition(headW);
-  var x, y;
-  if(type==='dodge'){ x = headW.x + (Math.random()-0.5)*0.14; y = headW.y + (Math.random()-0.5)*0.1; }
-  else { x = headW.x + (Math.random()*2-1) * 0.78; y = 1.02 + Math.random()*0.82; }
-  mesh.position.set(x, y, -4.85); /* just inside the far ropes, flying toward the player in the ring */
+  mesh.position.set(x, y, spawnZ); /* just inside the far ropes, flying toward the player in the ring */
   if(type==='bomb'){
     var spike = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.09, 8), mat(0x2a2c36, 0.5, 0.4));
     spike.position.set(0.05, radius*0.95, 0); spike.rotation.z = -0.4; mesh.add(spike);
@@ -1128,7 +1109,14 @@ function spawnBall(forceType){
   /* difficulty ramp: balls get markedly faster as the round goes on
      (travel distance is ~2.95 m from the far ropes to the player) */
   var speed = 1.55 + Math.random()*0.5 + Math.min(1.55, elapsed*0.03);
+  /* never let a new ball be faster than a ball just ahead of it in the same
+     lane, so it can't catch up and merge into it mid-flight */
+  for(var ci = 0; ci < balls.length; ci++){
+    var cb = balls[ci], cp = cb.mesh.position;
+    if(cp.z > spawnZ && Math.abs(cp.x - x) < 0.38 && Math.abs(cp.y - y) < 0.38 && cb.speed < speed) speed = cb.speed;
+  }
   balls.push({ mesh:mesh, type:type, radius:radius, speed:speed, spin:(Math.random()-0.5)*3, resolved:false });
+  return true;
 }
 
 /* ---------- game state ---------- */
@@ -1157,6 +1145,7 @@ function toast(text, color){
   clearTimeout(toast._tm); toast._tm = setTimeout(function(){ t.classList.remove('show'); }, 650);
 }
 function syncDomHud(){
+  document.body.classList.toggle('in-round', state==='playing');
   el('hud-score').textContent = Math.max(0, Math.round(game.score));
   var tt = el('hud-time');
   tt.textContent = mode==='endless' ? game.elapsed.toFixed(1) : Math.max(0, game.timeLeft).toFixed(1);
@@ -1177,7 +1166,7 @@ function clearBalls(){
 }
 function startGame(newMode){
   if(newMode==='timed' || newMode==='endless') mode = newMode;
-  ensureAudio();
+  ensureAudio(); startBgm();
   clearBalls();
   game = freshGame();
   state = 'playing';
@@ -1216,15 +1205,10 @@ function toTitle(){
   drawMenu();
   syncDomHud();
 }
-el('btn-start').addEventListener('click', function(){ startGame('timed'); });
-el('btn-start-endless').addEventListener('click', function(){ startGame('endless'); });
-el('ov-start').addEventListener('pointerdown', function(e){ if(e.target === el('ov-start')) startGame(); });
 el('btn-again').addEventListener('click', startGame);
 el('btn-end-reset').addEventListener('click', toTitle);
-el('btn-reset').addEventListener('click', function(){ ensureAudio(); restart(); });
-el('btn-music').addEventListener('click', function(){ setMusic(!musicOn); });
 
-/* VR button */
+/* VR button (the only button on the start screen: explanation + enter VR) */
 var vrBtn = el('btn-vr');
 var xrSession = null;
 if(navigator.xr && navigator.xr.isSessionSupported){
@@ -1233,18 +1217,44 @@ if(navigator.xr && navigator.xr.isSessionSupported){
     vrBtn.textContent = ok ? 'VRに入る' : 'VR非対応の端末';
   }).catch(function(){ vrBtn.disabled = true; vrBtn.textContent = 'VR非対応の端末'; });
 } else { vrBtn.disabled = true; vrBtn.textContent = 'VR非対応の端末'; }
+
+/* Recenter on entry: put the player on the ring start spot facing the menu
+   board, wherever they happen to be standing when the session starts.
+   Without this, the board can end up behind them on the first entry
+   (it only appeared reliably after a round, once the player had moved
+   into the play spot). */
+var pendingRecenter = 0;
+var _upAxis = new THREE.Vector3(0,1,0);
+function recenterRig(){
+  var headLocal = camera.position.clone();
+  var dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  var yaw = Math.atan2(-dir.x, -dir.z);
+  var newRot = rig.rotation.y - yaw;
+  rig.rotation.y = newRot;
+  var v = headLocal.applyAxisAngle(_upAxis, newRot);
+  rigBase.x = -v.x; rigBase.z = PLAYER_Z - v.z;
+  rig.position.x = rigBase.x; rig.position.z = rigBase.z;
+}
+
 vrBtn.addEventListener('click', function(){
-  ensureAudio();
+  ensureAudio(); startBgm();
   if(xrSession){ xrSession.end(); return; }
   if(!navigator.xr) return;
   var opts = { optionalFeatures:['local-floor','bounded-floor'] };
   navigator.xr.requestSession('immersive-vr', opts).then(function(session){
     xrSession = session;
     vrBtn.textContent = 'VRを出る';
-    session.addEventListener('end', function(){ xrSession = null; vrBtn.textContent = 'VRに入る'; });
+    session.addEventListener('end', function(){
+      xrSession = null; vrBtn.textContent = 'VRに入る';
+      bgm.pause();
+      if(state !== 'idle') toTitle(); else el('ov-start').classList.remove('hidden');
+    });
     renderer.xr.setReferenceSpaceType('local-floor');
     renderer.xr.setSession(session).then(function(){
-      /* do NOT auto-start: the player starts from inside VR via the menu board / buttons */
+      /* do NOT auto-start: the player picks a mode on the menu board inside VR */
+      el('ov-start').classList.add('hidden');
+      el('ov-end').classList.add('hidden');
+      pendingRecenter = 12; /* recenter once the first head poses have arrived */
       menuArmAt = clock.elapsedTime + 0.8;
       drawMenu();
     });
@@ -1296,7 +1306,7 @@ function updateGloves(dt){
         if(src && ((hand==='R' && src.handedness==='right') || (hand==='L' && src.handedness==='left'))){
           grips[gi].getWorldPosition(_v1); grips[gi].getWorldQuaternion(_q);
           /* grip origin is at palm; push glove slightly forward */
-          _v2.set(0, -0.02, -0.06).applyQuaternion(_q);
+          _v2.set(0, 0.005, -0.06).applyQuaternion(_q);
           gs.pos.copy(_v1).add(_v2);
           glove.quaternion.copy(_q).multiply(GLOVE_FLIP);
           tracked = true; break;
@@ -1307,12 +1317,12 @@ function updateGloves(dt){
     if(!tracked){
       if(hand==='R'){
         gs.pos.set(pointer.x, pointer.y, PLAYER_Z + 0.5);
-        glove.rotation.set(0.15, Math.PI, 0);
+        glove.rotation.set(0.45, Math.PI, 0);
       } else {
         /* left glove trails the right with an offset, like a guard hand */
         _v1.set(pointer.x - 0.34, pointer.y - 0.1, PLAYER_Z + 0.45);
         gs.pos.lerp(_v1, 1 - Math.pow(0.0001, dt));
-        glove.rotation.set(0.15, Math.PI - 0.25, 0);
+        glove.rotation.set(0.45, Math.PI - 0.25, 0);
       }
     }
     glove.position.copy(gs.pos);
@@ -1420,6 +1430,10 @@ function animate(){
   var dt = Math.min(clock.getDelta(), 0.05);
   try{
     pollGamepads();
+    if(pendingRecenter > 0 && renderer.xr.isPresenting){
+      pendingRecenter--;
+      if(pendingRecenter === 0) recenterRig();
+    }
 
     /* head dodge movement (desktop / non-XR) */
     var ducking = keys['ArrowDown'] || keys['KeyS'];
@@ -1451,14 +1465,15 @@ function animate(){
 
       game.spawnT -= dt;
       if(game.spawnT <= 0 && state==='playing'){
-        spawnBall(); game.thrown++;
+        if(spawnBall()) game.thrown++;
         var elapsed = roundElapsed();
-        /* difficulty ramp: spawn interval shrinks and multi-ball spawns get likelier over time */
+        /* difficulty ramp: spawn interval shrinks and multi-ball spawns get likelier over time.
+           Extra balls in a wave spawn staggered in depth, so a wave never arrives as one stacked clump. */
         var base = 1.02 - Math.min(0.52, elapsed*0.0095);
         game.spawnT = base * (0.75 + Math.random()*0.5);
         var multiP = 0.14 + (Math.min(elapsed, 60)/60) * 0.36;
-        if(Math.random() < multiP) { spawnBall(); game.thrown++; }
-        if(elapsed > 40 && Math.random() < 0.16) { spawnBall(); game.thrown++; }
+        if(Math.random() < multiP && spawnBall(null, 0.5)) game.thrown++;
+        if(elapsed > 40 && Math.random() < 0.16 && spawnBall(null, 1.0)) game.thrown++;
       }
       updateBalls(dt);
       if(game.pendingEnd && state==='playing') endGame();
@@ -1486,14 +1501,15 @@ function animate(){
       if(f.life<=0) f.sp.visible = false;
     }
 
-    /* camera shake on bad hits (desktop only; in XR moving the camera fights the headset) */
+    /* camera shake on bad hits (desktop only; in XR moving the camera fights the headset).
+       Offsets are relative to rigBase, the recentered start spot inside the ring. */
     if(game && game.shake>0){
       game.shake -= dt;
       if(!renderer.xr.isPresenting){
-        rig.position.x = (Math.random()-0.5) * game.shake * 0.09;
+        rig.position.x = rigBase.x + (Math.random()-0.5) * game.shake * 0.09;
         rig.position.y = (Math.random()-0.5) * game.shake * 0.09;
       }
-    } else { rig.position.x = 0; rig.position.y = 0; }
+    } else { rig.position.x = rigBase.x; rig.position.y = 0; }
 
     hudTimer -= dt;
     if(hudDirty || hudTimer<=0){ drawHud(); hudTimer = 0.2; if(state==='playing') hudDirty = true; }
