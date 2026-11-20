@@ -107,6 +107,7 @@
     <div class="hud-cell"><div class="hud-label">SCORE</div><div class="hud-value" id="hud-score">0</div></div>
     <div class="hud-cell"><div class="hud-label">TIME</div><div class="hud-value" id="hud-time">60.0</div></div>
     <div class="hud-cell"><div class="hud-label">COMBO</div><div class="hud-value" id="hud-combo">0</div></div>
+    <div class="hud-cell" id="hud-lives-cell" style="display:none"><div class="hud-label">LIFE</div><div class="hud-value" id="hud-lives" style="color:#ff6b60;font-size:20px;line-height:1.35">♥♥♥</div></div>
   </div>
 </div>
 
@@ -134,20 +135,22 @@
 <div class="overlay" id="ov-start">
   <div class="card">
     <h1>VRボクシング <span class="accent">試作</span></h1>
-    <p class="lead">シャドーボクシングの動きで遊ぶ60秒ラウンド。前から飛んでくる玉を、拳で打つ・体でよける。</p>
+    <p class="lead">シャドーボクシングの動きで遊ぶ60秒ラウンド。前から飛んでくる玉を、拳で打つ・体でよける。後半ほど玉は速く・多くなり、コンボが伸びるほど命中音の音程が上がります。</p>
     <div class="rules">
       <div class="rule"><span class="dot punch"></span><div><b>赤玉はパンチで壊す</b><span>速く突き出すほど高得点（+10〜30）。コンボがつながると気持ちいい。</span></div></div>
       <div class="rule"><span class="dot dodge"></span><div><b>青玉は顔を狙ってくる。よける</b><span>横にずれる／しゃがんでかわすと +15。顔に当たると −20。</span></div></div>
       <div class="rule"><span class="dot bomb"></span><div><b>黒い爆弾は殴らない</b><span>殴ると −30。触らず通り過ぎれば +10。</span></div></div>
+      <div class="rule"><span class="dot" style="background:#ffd60a"></span><div><b>エンドレスモード（ライフ3）</b><span>タイマーなし。顔への被弾と爆弾を殴るとライフ −1、0になったら終了。時間とともに少しずつ速く・多くなります。</span></div></div>
     </div>
     <p class="howto">
-      <b>Quest 3：</b>「VRに入る」から入室。コントローラーがそのまま拳です。VR中は A / X ボタンでリスタート。<br>
+      <b>Quest 3：</b>「VRに入る」から入室すると、リングの中に立った状態で始まります。スタートはVRの中で、目の前のボードのモード（60秒／エンドレス）にグローブで触れて開始。A・Xボタン／トリガーでも選択中のモードで開始できます。終了後はボードに触れてそのままリスタート、下部の「モード選択に戻る」でモード変更もできます。ラウンド中の A / X はリスタートです。<br>
       <b>PC・スマホ（お試し）：</b>マウス／指の動きが右拳、速く振るとパンチ判定。頭は A・D キーか下の ◀▼▶ ボタンでよけます。Rキーでリセット。<br>
       <b>BGM：</b>「LEATHER AND CANVAS」（Geminiで生成したインストゥルメンタル）。♪ボタン／Mキーで ON/OFF。
     </p>
     <p class="safety">安全のため：周りに物がない場所で遊び、コントローラーのストラップを必ず手首に通してください。</p>
     <div class="actions">
       <button class="primary" id="btn-start">🥊 ラウンド開始（60秒）</button>
+      <button class="primary" id="btn-start-endless" style="background:#0b5568;border-color:#39c2d7">♾ エンドレス開始（ライフ3）</button>
       <span style="font-size:12px;color:var(--sub)">カードの外側をタップしても始まります</span>
     </div>
   </div>
@@ -162,6 +165,7 @@
       <div class="result-cell"><div class="k">回避成功</div><div class="v" id="res-dodges">0</div></div>
       <div class="result-cell"><div class="k">最大コンボ</div><div class="v" id="res-combo">0</div></div>
       <div class="result-cell"><div class="k">被弾（顔／爆弾）</div><div class="v" id="res-bad">0</div></div>
+      <div class="result-cell" id="res-time-cell" style="display:none"><div class="k">持続時間（エンドレス）</div><div class="v" id="res-time">0:00</div></div>
     </div>
     <div class="actions">
       <button class="primary" id="btn-again">もう1ラウンド</button>
@@ -209,7 +213,10 @@ function noise(dur, vol, freq, delay){
   src.connect(f); f.connect(g); g.connect(AC.destination); src.start(t);
 }
 var SFX = {
-  punch: function(power){ noise(0.09, 0.35, 700+power*30); tone(150, 0.12, 'sine', 0.4, 55); tone(880,0.07,'triangle',0.12,1320); },
+  /* pitch climbs one semitone per combo step (capped at +1 octave at 12 combo);
+     when the combo breaks, game.combo resets to 0 and the pitch drops back to base */
+  punch: function(power, combo){ var f = Math.pow(2, Math.min(combo||0, 12) / 12);
+    noise(0.09, 0.35, 700+power*30); tone(150, 0.12, 'sine', 0.4, 55); tone(880*f, 0.07, 'triangle', 0.12, 1320*f); },
   whiff: function(){ noise(0.14, 0.10, 1800); },
   dodge: function(){ tone(660,0.1,'triangle',0.16); tone(990,0.14,'triangle',0.16,null,0.07); },
   headHit: function(){ tone(110,0.3,'sawtooth',0.3,60); noise(0.2,0.3,300); },
@@ -784,7 +791,8 @@ function fitFov(){
 }
 var camera = new THREE.PerspectiveCamera(fitFov(), window.innerWidth/window.innerHeight, 0.05, 60);
 var rig = new THREE.Group();
-rig.position.set(0, 0, 0.6);
+var PLAYER_Z = -1.9; /* player stands inside the ring (ring centre is z=-2.4, south ropes at z=0.15) */
+rig.position.set(0, 0, PLAYER_Z);
 camera.position.set(0, 1.6, 0);
 rig.add(camera);
 scene.add(rig);
@@ -867,7 +875,7 @@ gateTop.position.set(0, 2.5, 0); gate.add(gateTop);
 var gateGlow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.4),
   new THREE.MeshBasicMaterial({color:0x1b3a4a, transparent:true, opacity:0.35, depthWrite:false}));
 gateGlow.position.set(0, 1.25, 0.06); gate.add(gateGlow);
-gate.position.set(0, 0, -6.4); scene.add(gate);
+gate.position.set(0, 0, -4.9); scene.add(gate); /* just inside the far ropes (z=-4.95), in front of the player */
 
 /* ---------- gloves ---------- */
 function makeGlove(color){
@@ -888,9 +896,13 @@ function makeGlove(color){
 var gloveR = makeGlove(0xd92c20); scene.add(gloveR);
 var gloveL = makeGlove(0x1f6fb2); scene.add(gloveL);
 var gloveState = {
-  R:{ pos:new THREE.Vector3(0.24,1.38,0.1), prev:new THREE.Vector3(), vel:new THREE.Vector3(), speed:0, swingCd:0 },
-  L:{ pos:new THREE.Vector3(-0.24,1.32,0.1), prev:new THREE.Vector3(), vel:new THREE.Vector3(), speed:0, swingCd:0 }
+  R:{ pos:new THREE.Vector3(0.24,1.38,-1.4), prev:new THREE.Vector3(), vel:new THREE.Vector3(), speed:0, swingCd:0 },
+  L:{ pos:new THREE.Vector3(-0.24,1.32,-1.45), prev:new THREE.Vector3(), vel:new THREE.Vector3(), speed:0, swingCd:0 }
 };
+/* The glove model is built with its striking face toward +Z and the cuff toward -Z,
+   but WebXR grip space points forward along -Z. Without this 180° Y flip the glove
+   appears reversed (cuff forward, face toward the player). */
+var GLOVE_FLIP = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), Math.PI);
 
 /* XR controllers */
 var grips = [], controllers = [];
@@ -962,11 +974,78 @@ function drawHud(){
   c.fillText('SCORE', 86, 34); c.fillText('TIME', 256, 34); c.fillText('COMBO', 426, 34);
   c.fillStyle='#ffffff'; c.font='800 52px sans-serif';
   c.fillText(String(Math.max(0,Math.round(game.score))), 86, 96);
-  c.fillStyle = game.timeLeft<=10.05 && state==='playing' ? '#ff453a' : '#ffffff';
-  c.fillText(game.timeLeft.toFixed(1), 256, 96);
+  c.fillStyle = mode==='timed' && game.timeLeft<=10.05 && state==='playing' ? '#ff453a' : '#ffffff';
+  c.fillText(mode==='endless' ? game.elapsed.toFixed(1) : game.timeLeft.toFixed(1), 256, 96);
   c.fillStyle = game.combo>=5 ? '#ffd60a' : '#ffffff';
   c.fillText(String(game.combo), 426, 96);
+  if(mode==='endless'){
+    var hearts = ''; for(var hi=0; hi<3; hi++) hearts += hi < game.lives ? '♥' : '♡';
+    c.fillStyle = '#ff6b60'; c.font = '700 21px sans-serif';
+    c.fillText('LIFE ' + hearts, 256, 121);
+  }
   hudTex.needsUpdate = true; hudDirty = false;
+}
+
+/* ---------- VR menu board (start / result panel inside VR) ---------- */
+var menuCanvas = document.createElement('canvas'); menuCanvas.width = 640; menuCanvas.height = 448;
+var menuCtx = menuCanvas.getContext('2d');
+var menuTex = new THREE.CanvasTexture(menuCanvas);
+var menuPanel = new THREE.Mesh(new THREE.PlaneGeometry(1.18, 0.83),
+  new THREE.MeshBasicMaterial({map:menuTex, transparent:true, depthWrite:false}));
+menuPanel.position.set(0, 1.48, PLAYER_Z - 0.82); scene.add(menuPanel);
+var menuArmAt = 0; /* board touch is ignored until this time, so a finishing punch can't instantly restart */
+function drawMenu(){
+  var c = menuCtx; c.clearRect(0,0,640,448);
+  c.fillStyle = 'rgba(10,13,20,0.88)'; c.beginPath(); c.roundRect(2,2,636,444,26); c.fill();
+  c.strokeStyle = 'rgba(255,255,255,0.3)'; c.lineWidth = 3; c.stroke();
+  c.textAlign = 'center';
+  if(state === 'finished'){
+    c.fillStyle = '#ffd60a'; c.font = '900 50px sans-serif';
+    c.fillText('ラウンド終了！', 320, 68);
+    c.fillStyle = '#ffffff'; c.font = '900 84px sans-serif';
+    c.fillText(String(Math.max(0, Math.round(game.score))) + ' 点', 320, 162);
+    var yy = 214;
+    if(mode === 'endless'){
+      c.fillStyle = '#ffd60a'; c.font = '800 36px sans-serif';
+      c.fillText('持続時間 ' + fmtTime(game.elapsed), 320, yy); yy += 42;
+    }
+    c.font = '700 29px sans-serif'; c.fillStyle = '#dfe6ee';
+    c.fillText('パンチ命中 ' + game.hits + '　回避 ' + game.dodges, 320, yy); yy += 40;
+    c.fillText('最大コンボ ' + game.maxCombo + '　被弾 ' + game.bad, 320, yy); yy += 52;
+    c.fillStyle = '#7fdcec'; c.font = '800 31px sans-serif';
+    c.fillText('もう1ラウンド：ボードに触れる', 320, yy); yy += 36;
+    c.fillStyle = '#aeb8c4'; c.font = '700 24px sans-serif';
+    c.fillText('A / X ボタンでもリスタート（同じモード）', 320, yy);
+    c.fillStyle = 'rgba(255,255,255,0.10)'; c.beginPath(); c.roundRect(150, 392, 340, 44, 12); c.fill();
+    c.fillStyle = '#dfe6ee'; c.font = '700 24px sans-serif';
+    c.fillText('モード選択に戻る', 320, 422);
+  } else {
+    c.fillStyle = '#ffffff'; c.font = '900 58px sans-serif';
+    c.fillText('VRボクシング', 320, 84);
+    c.font = '700 28px sans-serif'; c.fillStyle = '#dfe6ee';
+    c.fillText('赤玉＝パンチ ／ 青玉＝よける ／ 爆弾＝殴らない', 320, 146);
+    c.fillText('後半ほど速く・多く ／ コンボで命中音が上昇', 320, 184);
+    c.fillStyle = '#ffd60a'; c.font = '800 30px sans-serif';
+    c.fillText('モードを選んでタッチでスタート', 320, 240);
+    /* mode boxes: touch targets (world centres at panel x ±0.269, y 1.312) */
+    var boxes = [ {x:36, key:'timed', title:'60秒モード', sub:'制限時間 60秒'},
+                  {x:328, key:'endless', title:'エンドレス', sub:'ライフ3・時間無制限'} ];
+    for(var bi=0; bi<2; bi++){
+      var b = boxes[bi], sel = (mode === b.key);
+      c.fillStyle = sel ? 'rgba(255,214,10,0.14)' : 'rgba(255,255,255,0.07)';
+      c.beginPath(); c.roundRect(b.x, 262, 276, 106, 14); c.fill();
+      c.strokeStyle = sel ? '#ffd60a' : 'rgba(255,255,255,0.35)'; c.lineWidth = sel ? 4 : 2; c.stroke();
+      c.fillStyle = '#ffffff'; c.font = '900 36px sans-serif';
+      c.fillText(b.title, b.x + 138, 314);
+      c.fillStyle = '#aeb8c4'; c.font = '700 22px sans-serif';
+      c.fillText(b.sub, b.x + 138, 346);
+    }
+    c.fillStyle = '#aeb8c4'; c.font = '700 22px sans-serif';
+    c.fillText('A / X・トリガーでも開始（選択中のモード）', 320, 404);
+    c.fillStyle = '#ffb3ad'; c.font = '700 21px sans-serif';
+    c.fillText('周りに物がない場所で、ストラップを手首に', 320, 432);
+  }
+  menuTex.needsUpdate = true;
 }
 
 /* floating score sprites */
@@ -1030,8 +1109,8 @@ function spawnBall(forceType){
   var headW = new THREE.Vector3(); camera.getWorldPosition(headW);
   var x, y;
   if(type==='dodge'){ x = headW.x + (Math.random()-0.5)*0.14; y = headW.y + (Math.random()-0.5)*0.1; }
-  else { x = (Math.random()*2-1) * 0.78; y = 1.02 + Math.random()*0.82; }
-  mesh.position.set(x, y, -6.3);
+  else { x = headW.x + (Math.random()*2-1) * 0.78; y = 1.02 + Math.random()*0.82; }
+  mesh.position.set(x, y, -4.85); /* just inside the far ropes, flying toward the player in the ring */
   if(type==='bomb'){
     var spike = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.09, 8), mat(0x2a2c36, 0.5, 0.4));
     spike.position.set(0.05, radius*0.95, 0); spike.rotation.z = -0.4; mesh.add(spike);
@@ -1045,19 +1124,31 @@ function spawnBall(forceType){
     band.rotation.x = Math.PI/2.4; mesh.add(band);
   }
   scene.add(mesh);
-  var elapsed = 60 - game.timeLeft;
-  var speed = 2.15 + Math.random()*0.7 + Math.min(1.15, elapsed*0.02);
+  var elapsed = roundElapsed();
+  /* difficulty ramp: balls get markedly faster as the round goes on
+     (travel distance is ~2.95 m from the far ropes to the player) */
+  var speed = 1.55 + Math.random()*0.5 + Math.min(1.55, elapsed*0.03);
   balls.push({ mesh:mesh, type:type, radius:radius, speed:speed, spin:(Math.random()-0.5)*3, resolved:false });
 }
 
 /* ---------- game state ---------- */
 var state = 'idle'; /* idle | playing | finished */
+var mode = 'timed'; /* timed | endless */
 var game = null;
 function freshGame(){
-  return { score:0, timeLeft:60, combo:0, maxCombo:0, hits:0, dodges:0, bad:0, thrown:0,
-           spawnT:0.55, lastCountSec:-1, shake:0 };
+  return { score:0, timeLeft:60, elapsed:0, lives:3, combo:0, maxCombo:0, hits:0, dodges:0, bad:0, thrown:0,
+           spawnT:0.55, lastCountSec:-1, shake:0, pendingEnd:false };
 }
 game = freshGame();
+function roundElapsed(){ return mode==='timed' ? (60 - game.timeLeft) : game.elapsed; }
+function fmtTime(s){ var m = Math.floor(s/60), ss = Math.floor(s%60); return m + ':' + (ss<10 ? '0' : '') + ss; }
+function loseLife(){
+  if(mode !== 'endless') return;
+  game.lives--;
+  if(game.lives <= 0){ game.pendingEnd = true; }
+  else toast('ライフ ' + game.lives, '#ff6b60');
+  syncDomHud();
+}
 
 var el = function(id){ return document.getElementById(id); };
 function toast(text, color){
@@ -1067,17 +1158,25 @@ function toast(text, color){
 }
 function syncDomHud(){
   el('hud-score').textContent = Math.max(0, Math.round(game.score));
-  var tt = el('hud-time'); tt.textContent = Math.max(0, game.timeLeft).toFixed(1);
-  tt.classList.toggle('warn', state==='playing' && game.timeLeft<=10.05);
+  var tt = el('hud-time');
+  tt.textContent = mode==='endless' ? game.elapsed.toFixed(1) : Math.max(0, game.timeLeft).toFixed(1);
+  tt.classList.toggle('warn', state==='playing' && mode==='timed' && game.timeLeft<=10.05);
   var cc = el('hud-combo'); cc.textContent = game.combo;
   cc.classList.toggle('hot', game.combo>=5);
+  var lc = el('hud-lives-cell');
+  if(lc){
+    lc.style.display = mode==='endless' ? '' : 'none';
+    var hearts = ''; for(var hi=0; hi<3; hi++) hearts += hi < game.lives ? '♥' : '♡';
+    el('hud-lives').textContent = hearts;
+  }
   hudDirty = true;
 }
 function clearBalls(){
   for(var i=0;i<balls.length;i++) scene.remove(balls[i].mesh);
   balls.length = 0;
 }
-function startGame(){
+function startGame(newMode){
+  if(newMode==='timed' || newMode==='endless') mode = newMode;
   ensureAudio();
   clearBalls();
   game = freshGame();
@@ -1101,16 +1200,24 @@ function endGame(){
   el('res-dodges').textContent = game.dodges;
   el('res-combo').textContent = game.maxCombo;
   el('res-bad').textContent = game.bad;
+  var rtc = el('res-time-cell');
+  if(mode==='endless'){ rtc.style.display = ''; el('res-time').textContent = fmtTime(game.elapsed); }
+  else rtc.style.display = 'none';
   el('ov-end').classList.remove('hidden');
+  menuArmAt = clock.elapsedTime + 1.0;
+  drawMenu();
   syncDomHud();
 }
 function toTitle(){
   state = 'idle'; clearBalls(); game = freshGame();
   el('ov-end').classList.add('hidden');
   el('ov-start').classList.remove('hidden');
+  menuArmAt = clock.elapsedTime + 0.6;
+  drawMenu();
   syncDomHud();
 }
-el('btn-start').addEventListener('click', startGame);
+el('btn-start').addEventListener('click', function(){ startGame('timed'); });
+el('btn-start-endless').addEventListener('click', function(){ startGame('endless'); });
 el('ov-start').addEventListener('pointerdown', function(e){ if(e.target === el('ov-start')) startGame(); });
 el('btn-again').addEventListener('click', startGame);
 el('btn-end-reset').addEventListener('click', toTitle);
@@ -1137,7 +1244,9 @@ vrBtn.addEventListener('click', function(){
     session.addEventListener('end', function(){ xrSession = null; vrBtn.textContent = 'VRに入る'; });
     renderer.xr.setReferenceSpaceType('local-floor');
     renderer.xr.setSession(session).then(function(){
-      if(state==='idle') startGame();
+      /* do NOT auto-start: the player starts from inside VR via the menu board / buttons */
+      menuArmAt = clock.elapsedTime + 0.8;
+      drawMenu();
     });
   }).catch(function(e){ showErr('VRセッションを開始できませんでした: ' + e.message); });
 });
@@ -1159,10 +1268,13 @@ function pollGamepads(){
   var session = renderer.xr.getSession(); if(!session) return;
   session.inputSources.forEach(function(src, idx){
     if(!src.gamepad) return;
-    [4,5].forEach(function(bi){
+    [0,4].forEach(function(bi){
       var btn = src.gamepad.buttons[bi]; if(!btn) return;
       var keyp = idx + ':' + bi;
-      if(btn.pressed && !padPrev[keyp]){ restart(); }
+      if(btn.pressed && !padPrev[keyp]){
+        if(bi===4){ restart(); }                    /* A / X: start, or restart mid-round */
+        else if(state!=='playing'){ startGame(); }  /* trigger: start from the menu board */
+      }
       padPrev[keyp] = btn.pressed;
     });
   });
@@ -1186,7 +1298,7 @@ function updateGloves(dt){
           /* grip origin is at palm; push glove slightly forward */
           _v2.set(0, -0.02, -0.06).applyQuaternion(_q);
           gs.pos.copy(_v1).add(_v2);
-          glove.quaternion.copy(_q);
+          glove.quaternion.copy(_q).multiply(GLOVE_FLIP);
           tracked = true; break;
         }
       }
@@ -1194,13 +1306,13 @@ function updateGloves(dt){
     }
     if(!tracked){
       if(hand==='R'){
-        gs.pos.set(pointer.x, pointer.y, 0.05);
-        glove.rotation.set(0.15, 0, 0);
+        gs.pos.set(pointer.x, pointer.y, PLAYER_Z + 0.5);
+        glove.rotation.set(0.15, Math.PI, 0);
       } else {
         /* left glove trails the right with an offset, like a guard hand */
-        _v1.set(pointer.x - 0.34, pointer.y - 0.1, 0.12);
+        _v1.set(pointer.x - 0.34, pointer.y - 0.1, PLAYER_Z + 0.45);
         gs.pos.lerp(_v1, 1 - Math.pow(0.0001, dt));
-        glove.rotation.set(0.15, 0.25, 0);
+        glove.rotation.set(0.15, Math.PI - 0.25, 0);
       }
     }
     glove.position.copy(gs.pos);
@@ -1232,7 +1344,7 @@ function hitBall(b, hand, speed){
     addScore(pts + bonus); game.hits++;
     burst(pos, 0xff7a3c, 14, 2.4); burst(pos, 0xffe1b0, 6, 1.4);
     spawnFloater(pos, '+' + (pts+bonus), '#ffb03a');
-    SFX.punch(speed); pulse(hand, 0.9, 70);
+    SFX.punch(speed, game.combo); pulse(hand, 0.9, 70);
     if(bonus) toast('コンボ ' + game.combo + '!', '#ffd60a');
   } else if(b.type==='bomb'){
     addScore(-30); game.bad++; breakCombo();
@@ -1241,11 +1353,12 @@ function hitBall(b, hand, speed){
     SFX.bomb(); pulse(hand, 1.0, 160);
     game.shake = 0.35;
     toast('爆弾を殴った！ −30', '#ff6b60');
+    loseLife();
   } else { /* dodge ball punched: treat as block, small points, no penalty */
     addScore(5); game.hits++;
     burst(pos, 0x39c2d7, 10, 1.8);
     spawnFloater(pos, '+5 ブロック', '#7fdcec');
-    SFX.punch(speed); pulse(hand, 0.6, 50);
+    SFX.punch(speed, game.combo); pulse(hand, 0.6, 50);
   }
   removeBall(b); hudDirty = true; syncDomHud();
 }
@@ -1284,11 +1397,12 @@ function updateBalls(dt){
       spawnFloater(p.clone(), '-20', '#ff6b60');
       SFX.headHit(); game.shake = 0.3;
       toast('顔に当たった！ −20', '#ff6b60');
+      loseLife();
       removeBall(b); syncDomHud(); continue;
     }
 
-    /* passed the player plane */
-    if(p.z > 0.75){
+    /* passed the player plane (relative to the head, wherever the player stands) */
+    if(p.z > head.z + 0.6){
       if(b.type==='punch'){ breakCombo(); spawnFloater(p.clone(), 'MISS', '#aeb8c4'); }
       else if(b.type==='dodge'){ addScore(15); game.dodges++; spawnFloater(p.clone(), '+15 回避', '#7fdcec'); SFX.dodge(); }
       else if(b.type==='bomb'){ addScore(10); spawnFloater(p.clone(), '+10 見送り', '#c9d1dc'); SFX.pass(); }
@@ -1324,20 +1438,30 @@ function animate(){
     updateGloves(dt);
 
     if(state==='playing'){
-      game.timeLeft -= dt;
-      var sec = Math.ceil(game.timeLeft);
-      if(sec !== game.lastCountSec){ game.lastCountSec = sec; if(sec<=5 && sec>0) SFX.count(); syncDomHud(); }
-      if(game.timeLeft <= 0){ game.timeLeft = 0; syncDomHud(); endGame(); }
+      if(mode==='timed'){
+        game.timeLeft -= dt;
+        var secT = Math.ceil(game.timeLeft);
+        if(secT !== game.lastCountSec){ game.lastCountSec = secT; if(secT<=5 && secT>0) SFX.count(); syncDomHud(); }
+        if(game.timeLeft <= 0){ game.timeLeft = 0; syncDomHud(); endGame(); }
+      } else {
+        game.elapsed += dt;
+        var secE = Math.floor(game.elapsed);
+        if(secE !== game.lastCountSec){ game.lastCountSec = secE; syncDomHud(); }
+      }
 
       game.spawnT -= dt;
       if(game.spawnT <= 0 && state==='playing'){
         spawnBall(); game.thrown++;
-        var elapsed = 60 - game.timeLeft;
-        var base = 1.05 - Math.min(0.45, elapsed*0.008);
+        var elapsed = roundElapsed();
+        /* difficulty ramp: spawn interval shrinks and multi-ball spawns get likelier over time */
+        var base = 1.02 - Math.min(0.52, elapsed*0.0095);
         game.spawnT = base * (0.75 + Math.random()*0.5);
-        if(Math.random() < 0.16) { spawnBall(); game.thrown++; }
+        var multiP = 0.14 + (Math.min(elapsed, 60)/60) * 0.36;
+        if(Math.random() < multiP) { spawnBall(); game.thrown++; }
+        if(elapsed > 40 && Math.random() < 0.16) { spawnBall(); game.thrown++; }
       }
       updateBalls(dt);
+      if(game.pendingEnd && state==='playing') endGame();
     } else {
       /* idle: gentle glove bob so the scene feels alive */
       var t = clock.elapsedTime;
@@ -1374,12 +1498,31 @@ function animate(){
     hudTimer -= dt;
     if(hudDirty || hudTimer<=0){ drawHud(); hudTimer = 0.2; if(state==='playing') hudDirty = true; }
 
+    /* VR menu board: visible outside a round. Idle: touch a mode box to start in that mode.
+       Finished: touch the board to restart in the same mode, or the bottom strip to re-pick a mode. */
+    menuPanel.visible = (state !== 'playing');
+    if(menuPanel.visible && clock.elapsedTime > menuArmAt){
+      var mp = menuPanel.position;
+      var nearL = gloveState.L.pos, nearR = gloveState.R.pos;
+      function gloveNear(x, y, d){
+        _v1.set(x, y, mp.z);
+        return nearL.distanceTo(_v1) < d || nearR.distanceTo(_v1) < d;
+      }
+      if(state === 'idle'){
+        if(gloveNear(mp.x - 0.269, mp.y - 0.168, 0.27)) startGame('timed');
+        else if(gloveNear(mp.x + 0.269, mp.y - 0.168, 0.27)) startGame('endless');
+      } else if(state === 'finished'){
+        if(gloveNear(mp.x, mp.y - 0.352, 0.30)) toTitle();
+        else if(nearL.distanceTo(mp) < 0.55 || nearR.distanceTo(mp) < 0.55) startGame();
+      }
+    }
+
     gateGlow.material.opacity = 0.28 + Math.sin(clock.elapsedTime*2.2)*0.1;
   }catch(e){ showErr(e.message); }
   renderer.render(scene, camera);
 }
 renderer.setAnimationLoop(animate);
-drawHud(); syncDomHud();
+drawHud(); drawMenu(); syncDomHud();
 
 window.addEventListener('resize', function(){
   camera.aspect = window.innerWidth/window.innerHeight;
