@@ -61,6 +61,8 @@
   button.dodge-btn{width:56px;height:56px;border-radius:50%;font-size:20px;padding:0;background:rgba(20,24,34,.78);}
   #btn-vr{background:#1d4ed8;border-color:#3b82f6;}
   #btn-vr:disabled{opacity:.45;cursor:default;}
+  #btn-ar{background:#0e7490;border-color:#22d3ee;}
+  #btn-ar:disabled{opacity:.45;cursor:default;}
 
   /* ---------- overlays ---------- */
   .overlay{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
@@ -128,21 +130,23 @@
 <div class="overlay" id="ov-start">
   <div class="card">
     <h1>VRボクシング <span class="accent">試作</span></h1>
-    <p class="lead">シャドーボクシングの動きで遊ぶVR専用ゲーム。前から飛んでくる玉を、拳で打つ・体でよける。後半ほど玉は速く・多くなります。効果音は大きく前に出し、コンボが伸びるほど命中音がペンタトニック音階を駆け上がって気持ちよくなります。赤玉は輪っかのないクリーンな玉になり、叩くと衝撃波と火花が弾ける爽快エフェクト、爆弾は本格的な爆発エフェクトです。モードはVRの中で選べます。</p>
+    <p class="lead">シャドーボクシングの動きで遊ぶVR／MRゲーム。前から飛んでくる玉を、拳で打つ・体でよける。後半ほど玉は速く・多くなります。効果音は大きく前に出し、コンボが伸びるほど命中音がペンタトニック音階を駆け上がって気持ちよくなります。赤玉は輪っかのないクリーンな玉になり、叩くと衝撃波と火花が弾ける爽快エフェクト、爆弾は本格的な爆発エフェクトです。モードはVRの中で選べます。</p>
     <div class="rules">
       <div class="rule"><span class="dot punch"></span><div><b>赤玉はパンチで壊す</b><span>速く突き出すほど高得点（+10〜30）。コンボがつながると気持ちいい。</span></div></div>
       <div class="rule"><span class="dot dodge"></span><div><b>青玉は顔を狙ってくる。よける</b><span>横にずれる／しゃがんでかわすと +15。顔に当たると −20。</span></div></div>
       <div class="rule"><span class="dot bomb"></span><div><b>黒い爆弾は殴らない</b><span>殴ると −30。触らず通り過ぎれば +10。当たると大爆発エフェクト。</span></div></div>
       <div class="rule"><span class="dot drink"></span><div><b>⚡エナジードリンクはラッキーアイテム</b><span>ときどき飛んでくる黄色い缶を叩くとボーナス突入。その間ほかの玉は消え、目の前にサンドバッグが出現。5秒間ひたすら連打して、1発 +5点＆連打数で追加ボーナス。</span></div></div>
       <div class="rule"><span class="dot" style="background:#ffd60a"></span><div><b>エンドレスモード（ライフ3）</b><span>タイマーなし。顔への被弾と爆弾を殴るとライフ −1、0になったら終了。時間とともに少しずつ速く・多くなります。</span></div></div>
+      <div class="rule"><span class="dot" style="background:#22d3ee"></span><div><b>パススルー（MR）モード</b><span>部屋が見えたまま遊べます。リングやジムの背景は消え、代わりに床に金色の円が立ち位置の目印として出ます。玉・グローブ・出現ゲートはそのまま表示され、遊び方はVRと同じです。</span></div></div>
     </div>
     <p class="howto">
-      <b>遊び方：</b>下の「VRに入る」を押してヘッドセットをかぶると、リングの中に立った状態で、目の前にモード選択ボードが出ます。グローブでモード（60秒／エンドレス）に触れるとスタート。A・Xボタン／トリガーでも開始できます。終了後はボードに触れてそのままリスタート、下部の「モード選択に戻る」でモード変更もできます。ラウンド中の A / X はリスタートです。<br>
+      <b>遊び方：</b>下の「VRに入る」（ジムのリングで遊ぶ）か「パススルー（MR）で入る」（自分の部屋が見えたまま遊ぶ）を押してヘッドセットをかぶると、目の前にモード選択ボードが出ます。グローブでモード（60秒／エンドレス）に触れるとスタート。A・Xボタン／トリガーでも開始できます。終了後はボードに触れてそのままリスタート、下部の「モード選択に戻る」でモード変更もできます。ラウンド中の A / X はリスタートです。<br>
       <b>BGM：</b>「EIGHT OUNCE VELOCITY」（Geminiで生成したインストゥルメンタル）が自動で流れます。
     </p>
     <p class="safety">安全のため：周りに物がない場所で遊び、コントローラーのストラップを必ず手首に通してください。</p>
     <div class="actions">
       <button class="primary" id="btn-vr">VRに入る</button>
+      <button class="primary" id="btn-ar">パススルー（MR）で入る</button>
     </div>
   </div>
 </div>
@@ -850,8 +854,9 @@ function startBgm(){
 var container = document.getElementById('scene');
 var renderer;
 try{
-  renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+  renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance', alpha:true});
 }catch(e){ showErr('WebGLを初期化できませんでした'); return; }
+renderer.setClearColor(0x000000, 0); /* alpha 0 clear: in an immersive-ar session the real room shows through wherever nothing is drawn */
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
@@ -863,8 +868,10 @@ renderer.xr.enabled = true;
 container.appendChild(renderer.domElement);
 
 var scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0d1017);
-scene.fog = new THREE.Fog(0x0d1017, 9, 20);
+var BG_COLOR = new THREE.Color(0x0d1017);
+var sceneFog = new THREE.Fog(0x0d1017, 9, 20);
+scene.background = BG_COLOR;
+scene.fog = sceneFog;
 
 function fitFov(){
   var a = window.innerWidth/window.innerHeight;
@@ -892,16 +899,19 @@ var spot = new THREE.SpotLight(0xffe9c4, 60, 14, 0.6, 0.5); spot.position.set(0,
 spot.target.position.set(0,1.2,-2.2); scene.add(spot); scene.add(spot.target);
 
 /* ---------- gym / ring environment ---------- */
+/* Everything that makes up the virtual gym lives in envGroup, so passthrough
+   (MR) mode can hide it all at once and let the real room show through. */
+var envGroup = new THREE.Group(); scene.add(envGroup);
 function mat(color, rough, metal){ return new THREE.MeshStandardMaterial({color:color, roughness:rough, metalness:metal||0}); }
 var floor = new THREE.Mesh(new THREE.PlaneGeometry(30,30), mat(0x14171f, 0.95));
-floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
+floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; envGroup.add(floor);
 
 /* ring mat */
 var ringMat = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.12, 5.4),
   new THREE.MeshStandardMaterial({color:0x27324a, roughness:0.9}));
-ringMat.position.set(0, 0.06, -2.4); ringMat.receiveShadow = true; ringMat.castShadow = true; scene.add(ringMat);
+ringMat.position.set(0, 0.06, -2.4); ringMat.receiveShadow = true; ringMat.castShadow = true; envGroup.add(ringMat);
 var ringIn = new THREE.Mesh(new THREE.PlaneGeometry(4.4,4.4), mat(0x2f3d5c, 0.92));
-ringIn.rotation.x = -Math.PI/2; ringIn.position.set(0, 0.125, -2.4); ringIn.receiveShadow = true; scene.add(ringIn);
+ringIn.rotation.x = -Math.PI/2; ringIn.position.set(0, 0.125, -2.4); ringIn.receiveShadow = true; envGroup.add(ringIn);
 
 /* ring posts + ropes */
 var postGeo = new THREE.CylinderGeometry(0.045,0.045,1.15,10);
@@ -909,9 +919,9 @@ var postCols = [0xff453a, 0x39c2d7, 0xf4f6f8, 0xf4f6f8];
 var corners = [[-2.55,-4.95],[2.55,-4.95],[-2.55,0.15],[2.55,0.15]];
 corners.forEach(function(c, i){
   var p = new THREE.Mesh(postGeo, mat(postCols[i], 0.4, 0.6));
-  p.position.set(c[0], 0.68, c[1]); p.castShadow = true; scene.add(p);
+  p.position.set(c[0], 0.68, c[1]); p.castShadow = true; envGroup.add(p);
   var cap = new THREE.Mesh(new THREE.SphereGeometry(0.07,12,10), mat(postCols[i],0.35,0.4));
-  cap.position.set(c[0], 1.28, c[1]); scene.add(cap);
+  cap.position.set(c[0], 1.28, c[1]); envGroup.add(cap);
 });
 [0.55, 0.85, 1.12].forEach(function(h, ri){
   var col = ri===1 ? 0xff453a : 0xe8ecf2;
@@ -921,7 +931,7 @@ corners.forEach(function(c, i){
     var r = new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,len,8), ropeMat);
     r.position.set((x1+x2)/2, h, (z1+z2)/2);
     r.rotation.z = Math.PI/2; r.rotation.y = -Math.atan2(dz,dx);
-    scene.add(r);
+    envGroup.add(r);
   }
   rope(-2.55,-4.95, 2.55,-4.95); rope(-2.55,0.15, 2.55,0.15);
   rope(-2.55,-4.95, -2.55,0.15); rope(2.55,-4.95, 2.55,0.15);
@@ -929,20 +939,20 @@ corners.forEach(function(c, i){
 
 /* back wall panels + hanging lamps */
 var wall = new THREE.Mesh(new THREE.PlaneGeometry(24,7), mat(0x11141c, 0.95));
-wall.position.set(0, 3.5, -9.5); wall.receiveShadow = true; scene.add(wall);
+wall.position.set(0, 3.5, -9.5); wall.receiveShadow = true; envGroup.add(wall);
 for(var wi=-2; wi<=2; wi++){
   var panel = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 4.6),
     new THREE.MeshStandardMaterial({color:0x171c28, roughness:0.9, emissive:0x0a1220, emissiveIntensity:0.6}));
-  panel.position.set(wi*3.4, 2.6, -9.4); scene.add(panel);
+  panel.position.set(wi*3.4, 2.6, -9.4); envGroup.add(panel);
 }
 [-3.2, 0, 3.2].forEach(function(x){
   var cord = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,1.1,6), mat(0x333a48,0.7));
-  cord.position.set(x, 4.6, -2.4); scene.add(cord);
+  cord.position.set(x, 4.6, -2.4); envGroup.add(cord);
   var shade = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.3, 20, 1, true), mat(0x232936, 0.5, 0.5));
-  shade.position.set(x, 4.0, -2.4); scene.add(shade);
+  shade.position.set(x, 4.0, -2.4); envGroup.add(shade);
   var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.09,12,10),
     new THREE.MeshStandardMaterial({color:0xfff3d0, emissive:0xffdf9e, emissiveIntensity:2.4}));
-  bulb.position.set(x, 3.9, -2.4); scene.add(bulb);
+  bulb.position.set(x, 3.9, -2.4); envGroup.add(bulb);
 });
 
 /* spawn gate frame (balls come through here) */
@@ -958,6 +968,15 @@ var gateGlow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.4),
   new THREE.MeshBasicMaterial({color:0x1b3a4a, transparent:true, opacity:0.35, depthWrite:false}));
 gateGlow.position.set(0, 1.25, 0.06); gate.add(gateGlow);
 gate.position.set(0, 0, -4.9); scene.add(gate); /* just inside the far ropes (z=-4.95), in front of the player */
+
+/* MR play-area marker: in passthrough there is no ring, so a thin gold circle
+   on the real floor marks the start spot / safe play area instead. */
+var arMarker = new THREE.Mesh(new THREE.RingGeometry(1.42, 1.52, 48),
+  new THREE.MeshBasicMaterial({color:0xffd60a, transparent:true, opacity:0.55, side:THREE.DoubleSide, depthWrite:false}));
+arMarker.rotation.x = -Math.PI/2;
+arMarker.position.set(0, 0.02, PLAYER_Z);
+arMarker.visible = false;
+scene.add(arMarker);
 
 /* ---------- gloves ---------- */
 function makeGlove(color, mirror){
@@ -1101,6 +1120,8 @@ function drawMenu(){
     c.font = '700 28px sans-serif'; c.fillStyle = '#dfe6ee';
     c.fillText('赤玉＝パンチ ／ 青玉＝よける ／ 爆弾＝殴らない', 320, 146);
     c.fillText('コンボで命中音が上昇 ／ ⚡缶＝サンドバッグ連打', 320, 184);
+    c.fillStyle = '#7fdcec'; c.font = '700 23px sans-serif';
+    c.fillText(xrMode === 'ar' ? '表示：パススルー（部屋が見えています）' : '表示：VR（リングの中）', 320, 216);
     c.fillStyle = '#ffd60a'; c.font = '800 30px sans-serif';
     c.fillText('モードを選んでタッチでスタート', 320, 240);
     /* mode boxes: touch targets (world centres at panel x ±0.269, y 1.312) */
@@ -1526,15 +1547,33 @@ function toTitle(){
 el('btn-again').addEventListener('click', startGame);
 el('btn-end-reset').addEventListener('click', toTitle);
 
-/* VR button (the only button on the start screen: explanation + enter VR) */
+/* Start-screen buttons: explanation + enter VR, or enter passthrough (MR).
+   Both session kinds share everything else (menu board, recenter, gamepad);
+   they differ only in the session mode requested and in applyDisplayMode(). */
 var vrBtn = el('btn-vr');
+var arBtn = el('btn-ar');
 var xrSession = null;
+var xrMode = 'vr'; /* 'vr' | 'ar' — which kind of session is (or was last) requested */
+function applyDisplayMode(){
+  var ar = (xrMode === 'ar');
+  envGroup.visible = !ar;
+  arMarker.visible = ar;
+  scene.background = ar ? null : BG_COLOR; /* null + alpha-0 clear = the real room shows through */
+  scene.fog = ar ? null : sceneFog;
+}
 if(navigator.xr && navigator.xr.isSessionSupported){
   navigator.xr.isSessionSupported('immersive-vr').then(function(ok){
     vrBtn.disabled = !ok;
     vrBtn.textContent = ok ? 'VRに入る' : 'VR非対応の端末';
   }).catch(function(){ vrBtn.disabled = true; vrBtn.textContent = 'VR非対応の端末'; });
-} else { vrBtn.disabled = true; vrBtn.textContent = 'VR非対応の端末'; }
+  navigator.xr.isSessionSupported('immersive-ar').then(function(ok){
+    arBtn.disabled = !ok;
+    arBtn.textContent = ok ? 'パススルー（MR）で入る' : 'MR非対応の端末';
+  }).catch(function(){ arBtn.disabled = true; arBtn.textContent = 'MR非対応の端末'; });
+} else {
+  vrBtn.disabled = true; vrBtn.textContent = 'VR非対応の端末';
+  arBtn.disabled = true; arBtn.textContent = 'MR非対応の端末';
+}
 
 /* Recenter on entry: put the player on the ring start spot facing the menu
    board, wherever they happen to be standing when the session starts.
@@ -1554,30 +1593,35 @@ function recenterRig(){
   rig.position.x = rigBase.x; rig.position.z = rigBase.z;
 }
 
-vrBtn.addEventListener('click', function(){
+function enterXR(kind){ /* kind: 'immersive-vr' | 'immersive-ar' */
   ensureAudio(); startBgm();
   if(xrSession){ xrSession.end(); return; }
   if(!navigator.xr) return;
+  xrMode = (kind === 'immersive-ar') ? 'ar' : 'vr';
   var opts = { optionalFeatures:['local-floor','bounded-floor'] };
-  navigator.xr.requestSession('immersive-vr', opts).then(function(session){
+  navigator.xr.requestSession(kind, opts).then(function(session){
     xrSession = session;
-    vrBtn.textContent = 'VRを出る';
+    applyDisplayMode();
+    vrBtn.textContent = 'セッションを終了';
     session.addEventListener('end', function(){
-      xrSession = null; vrBtn.textContent = 'VRに入る';
+      xrSession = null; xrMode = 'vr'; applyDisplayMode();
+      vrBtn.textContent = 'VRに入る';
       bgm.pause();
       if(state !== 'idle') toTitle(); else el('ov-start').classList.remove('hidden');
     });
     renderer.xr.setReferenceSpaceType('local-floor');
     renderer.xr.setSession(session).then(function(){
-      /* do NOT auto-start: the player picks a mode on the menu board inside VR */
+      /* do NOT auto-start: the player picks a mode on the menu board inside the headset */
       el('ov-start').classList.add('hidden');
       el('ov-end').classList.add('hidden');
       pendingRecenter = 12; /* recenter once the first head poses have arrived */
       menuArmAt = clock.elapsedTime + 0.8;
       drawMenu();
     });
-  }).catch(function(e){ showErr('VRセッションを開始できませんでした: ' + e.message); });
-});
+  }).catch(function(e){ showErr('セッションを開始できませんでした: ' + e.message); });
+}
+vrBtn.addEventListener('click', function(){ enterXR('immersive-vr'); });
+arBtn.addEventListener('click', function(){ enterXR('immersive-ar'); });
 
 /* haptics */
 function pulse(hand, strength, ms){
